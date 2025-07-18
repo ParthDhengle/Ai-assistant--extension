@@ -1,0 +1,76 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+.env/
+.hf_models/
+hf_models/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# VS Code settings
+.vscode/
+
+# PyCharm settings
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment variables
+*.env
+.env.*
+
+# Cache
+.cache/
+*.sqlite3
+
+# Model and data files
+*.h5
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.joblib
+*.pkl
+models/
+data/
+dataset/
+weights/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Compiled C extensions
+*.so
+
+# Windows-specific
+*.exe
+*.dll
+
+# MacOS-specific
+.AppleDouble
+.LSOverride
+
+# Python egg metadata
+*.egg-info/
+dist/
+build/
+eggs/
+
+# Ignore huggingface transformers cache (optional)
+~/.cache/huggingface
