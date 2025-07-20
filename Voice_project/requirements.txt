@@ -1,12 +1,61 @@
-transformers
-langchain
-langchain-huggingface
-torch
-torchvision 
-torchaudio --index-url https://download.pytorch.org/whl/cu121
-sounddevice 
-numpy 
-scipy 
-pyttsx3
-tk
-requests
+# Core ML and AI libraries
+transformers>=4.21.0
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0 --index-url https://download.pytorch.org/whl/cu121
+
+# Audio processing
+sounddevice>=0.4.5
+numpy>=1.21.0
+scipy>=1.9.0
+
+# Text-to-speech
+pyttsx3>=2.90
+
+# GUI (Tkinter is usually built-in with Python, but including for completeness)
+# tkinter is built-in, no need to install separately
+
+# HTTP requests for Ollama API
+requests>=2.25.0
+
+# LangChain (if you plan to use it, though not directly used in current code)
+langchain>=0.1.0
+langchain-huggingface>=0.0.1
+
+# Additional dependencies for Silero VAD (used in audio.py)
+# These are automatically installed with torch.hub.load, but good to have explicit versions
+torchaudio>=2.0.0
+
+# For better audio handling and format conversion
+librosa>=0.9.0
+
+# For temporary file handling (built-in, but ensuring compatibility)
+# tempfile is built-in
+
+# For JSON handling (built-in)
+# json is built-in
+
+# For regular expressions (built-in)
+# re is built-in
+
+# For threading (built-in)
+# threading is built-in
+
+# For file operations (built-in)
+# os, shutil are built-in
+
+# For queue operations (built-in)
+# queue is built-in
+
+# System-specific dependencies
+# Windows: pywin32 (for better Windows integration)
+pywin32>=300; sys_platform == "win32"
+
+# Optional: For better error handling and logging
+colorama>=0.4.4
+
+# Optional: For more robust audio processing
+soundfile>=0.12.1
+
+# Optional: For better performance monitoring
+psutil>=5.8.0
