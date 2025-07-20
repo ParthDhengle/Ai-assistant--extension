@@ -28,6 +28,9 @@ except Exception as model_error:
     print("Please check the MODEL_PATH in config.py")
     sys.exit(1)
 
+# Global variable to store pending OS action
+pending_os_action = None
+
 def safe_print(message):
     """Safely print messages, handling encoding issues"""
     try:
@@ -91,8 +94,104 @@ def transcribe_audio(path):
         except Exception as cleanup_error:
             safe_print(f"⚠️ Could not clean up temp file: {cleanup_error}")
 
+def get_confirmation_message(parsed_action):
+    """Generate a human-friendly confirmation message based on the OS action"""
+    action = parsed_action.get("action")
+    target = parsed_action.get("target")
+    source = parsed_action.get("source")
+    destination = parsed_action.get("destination")
+    
+    if action == "create_file":
+        return f"Do you want to create the file '{target}'?"
+    elif action == "delete_file":
+        return f"Do you want to delete the file '{target}'?"
+    elif action == "create_folder":
+        return f"Do you want to create the folder '{target}'?"
+    elif action == "delete_folder":
+        return f"Do you want to delete the folder '{target}'?"
+    elif action == "copy_file":
+        return f"Do you want to copy '{source}' to '{destination}'?"
+    elif action == "move_file":
+        return f"Do you want to move '{source}' to '{destination}'?"
+    else:
+        return f"Do you want to perform the action: {action}?"
+
+def execute_os_action(parsed_action):
+    """Execute the OS action after confirmation"""
+    global pending_os_action
+    
+    action = parsed_action.get("action")
+    
+    try:
+        # Perform OS action based on type
+        if action == "copy_file":
+            source = parsed_action.get("source")
+            destination = parsed_action.get("destination")
+            if not source or not destination:
+                raise ValueError("Copy operation requires both source and destination")
+            result = os_actions.perform_os_action(action, source, destination)
+        elif action in ["move_file"]:
+            source = parsed_action.get("source")
+            destination = parsed_action.get("destination")
+            if not source or not destination:
+                raise ValueError("Move operation requires both source and destination")
+            result = os_actions.perform_os_action(action, source, destination)
+        else:
+            target = parsed_action.get("target")
+            if not target:
+                raise ValueError(f"Action {action} requires a target")
+            result = os_actions.perform_os_action(action, target)
+        
+        safe_result = f"🖥️ {result}"
+        output_text.set(safe_result)
+        speech.speak(result)
+        
+    except Exception as os_error:
+        error_msg = f"OS action failed: {str(os_error)}"
+        safe_print(f"❌ {error_msg}")
+        output_text.set(f"❌ {error_msg}")
+        speech.speak("The OS action failed.")
+    
+    # Clear pending action
+    pending_os_action = None
+
+def handle_confirmation_response(user_text):
+    """Handle user's yes/no response to OS action confirmation"""
+    global pending_os_action
+    
+    user_text_lower = user_text.lower().strip()
+    
+    # Check for positive responses
+    positive_responses = ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'go ahead', 'proceed', 'do it']
+    negative_responses = ['no', 'nope', 'cancel', 'stop', 'don\'t', 'abort']
+    
+    is_positive = any(pos in user_text_lower for pos in positive_responses)
+    is_negative = any(neg in user_text_lower for neg in negative_responses)
+    
+    if is_positive and not is_negative:
+        # User confirmed - execute the action
+        output_text.set("🖥️ Executing action...")
+        app.update()
+        execute_os_action(pending_os_action)
+        return True
+        
+    elif is_negative:
+        # User declined - cancel the action
+        output_text.set("❌ Action cancelled.")
+        speech.speak("Action cancelled. What else can I help you with?")
+        pending_os_action = None
+        return True
+        
+    else:
+        # Unclear response - ask again
+        output_text.set("🤔 Please say 'yes' to confirm or 'no' to cancel.")
+        speech.speak("I didn't understand. Please say yes to confirm or no to cancel.")
+        return False
+
 def handle_voice():
     """Handle voice input with comprehensive error handling"""
+    global pending_os_action
+    
     try:
         # Update GUI to show recording status
         output_text.set("🎤 Recording... Please speak clearly and wait for silence detection.")
@@ -125,7 +224,14 @@ def handle_voice():
             speech.speak("Your speech was too short or unclear. Please try again.")
             return
 
-        # Generate response
+        # Check if we're waiting for confirmation
+        if pending_os_action:
+            if handle_confirmation_response(user_text):
+                return  # Confirmation handled, done
+            else:
+                return  # Need to ask again, done for now
+
+        # Generate response for new request
         output_text.set("🤖 Processing your request...")
         app.update()
         
@@ -147,45 +253,13 @@ def handle_voice():
             speech.speak(message)
 
         elif response_type == "os":
-            # First speak the message
-            speech.speak(message)
+            # Ask for confirmation before executing OS actions
+            pending_os_action = parsed
+            confirmation_message = get_confirmation_message(parsed)
             
-            action = parsed.get("action")
-            
-            if not action:
-                output_text.set("❌ No OS action specified")
-                speech.speak("No action was specified.")
-                return
-                
-            try:
-                # Perform OS action based on type
-                if action == "copy_file":
-                    source = parsed.get("source")
-                    destination = parsed.get("destination")
-                    if not source or not destination:
-                        raise ValueError("Copy operation requires both source and destination")
-                    result = os_actions.perform_os_action(action, source, destination)
-                elif action in ["move_file"]:
-                    source = parsed.get("source") 
-                    destination = parsed.get("destination")
-                    if not source or not destination:
-                        raise ValueError("Move operation requires both source and destination")
-                    result = os_actions.perform_os_action(action, source, destination)
-                else:
-                    target = parsed.get("target")
-                    if not target:
-                        raise ValueError(f"Action {action} requires a target")
-                    result = os_actions.perform_os_action(action, target)
-                
-                safe_result = f"🖥️ {result}"
-                output_text.set(safe_result)
-                speech.speak(result)
-                
-            except Exception as os_error:
-                error_msg = f"OS action failed: {str(os_error)}"
-                safe_print(f"❌ {error_msg}")
-                output_text.set(f"❌ {error_msg}")
-                speech.speak("The OS action failed.")
+            output_text.set(f"🤔 {confirmation_message}")
+            speech.speak(confirmation_message)
+            safe_print(f"Awaiting confirmation for: {parsed}")
 
         elif response_type == "code":
             speech.speak(message)
@@ -240,9 +314,16 @@ label.pack(pady=40)
 
 def start_recording():
     """Start recording in a separate thread"""
+    global pending_os_action
+    
     # Disable button during recording to prevent multiple simultaneous recordings
     record_button.config(state="disabled", text="🎤 Recording...")
-    status_label.config(text="Recording in progress...")
+    
+    # Update status based on current state
+    if pending_os_action:
+        status_label.config(text="Waiting for confirmation...")
+    else:
+        status_label.config(text="Recording in progress...")
     
     def recording_thread():
         try:
@@ -250,7 +331,10 @@ def start_recording():
         finally:
             # Re-enable button
             record_button.config(state="normal", text="🎙️ Speak")
-            status_label.config(text="Ready")
+            if pending_os_action:
+                status_label.config(text="Awaiting confirmation")
+            else:
+                status_label.config(text="Ready")
             
     Thread(target=recording_thread, daemon=True).start()
 
@@ -259,6 +343,21 @@ record_button = tk.Button(app, text="🎙️ Speak", font=("Helvetica", 16),
                           command=start_recording, bg="#4CAF50", fg="white", 
                           padx=30, pady=15)
 record_button.pack(pady=20)
+
+# Add cancel button for pending actions
+def cancel_pending_action():
+    """Cancel any pending OS action"""
+    global pending_os_action
+    if pending_os_action:
+        pending_os_action = None
+        output_text.set("❌ Pending action cancelled.")
+        speech.speak("Pending action cancelled. What else can I help you with?")
+        status_label.config(text="Ready")
+
+cancel_button = tk.Button(app, text="❌ Cancel", font=("Helvetica", 12),
+                         command=cancel_pending_action, bg="#f44336", fg="white",
+                         padx=15, pady=8)
+cancel_button.pack(pady=5)
 
 # Add microphone test button
 def test_microphone():
@@ -310,7 +409,7 @@ status_label = tk.Label(app, text="Ready", fg="#888", bg="#1e1e1e",
 status_label.pack(side="bottom", pady=10)
 
 # Add instructions
-instructions_text = "💡 Tips: Speak clearly, wait for silence detection, ensure microphone permissions are granted"
+instructions_text = "💡 Tips: Speak clearly, wait for silence detection, confirm OS actions with 'yes' or 'no'"
 instructions_label = tk.Label(app, text=instructions_text, fg="#666", bg="#1e1e1e",
                             font=("Helvetica", 9), wraplength=550)
 instructions_label.pack(side="bottom", pady=5)

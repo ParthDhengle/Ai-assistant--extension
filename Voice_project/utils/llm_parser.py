@@ -103,7 +103,7 @@ def generate_response(prompt):
                 code_response = requests.post(
                     "http://localhost:11434/api/chat",
                     json={
-                        "model": "codellama:13b",
+                        "model": "mistral:7b",
                         "messages": [
                             {"role": "system", "content": "Generate only Python code, no explanation."},
                             {"role": "user", "content": prompt}
