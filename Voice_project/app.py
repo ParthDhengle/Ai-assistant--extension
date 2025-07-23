@@ -1,28 +1,22 @@
 import tkinter as tk
 from threading import Thread
 from config import MODEL_PATH
-from utils import audio, speech, llm_parser, os_actions
-from transformers import pipeline
+from core.asr_transcriber import transcribe_audio
+from core.nlp_parser import generate_response
+from core.memory_manager import MemoryManager
+from core.task_executor import execute_os_action
+from utils.audio_utils import record_until_silence
+from utils.speech import speak
+from utils.text_utils import estimate_tokens
 import torch
 import sys
 import os
 import numpy as np
-
 if sys.platform.startswith('win'):
     os.system('chcp 65001 > nul')
 
-try:
-    print("🔧 Loading Whisper model...")
-    asr = pipeline(
-        "automatic-speech-recognition",
-        model=MODEL_PATH,
-        device=0 if torch.cuda.is_available() else -1,
-        return_timestamps=True,
-    )
-    print("✅ Whisper model loaded successfully")
-except Exception as model_error:
-    print(f"❌ Error loading Whisper model: {model_error}")
-    sys.exit(1)
+# Initialize memory manager
+memory_manager = MemoryManager()
 
 pending_os_action = None
 actions_requiring_confirmation = ["delete_file", "delete_folder", "system_command"]
@@ -33,35 +27,6 @@ def safe_print(message):
     except UnicodeEncodeError:
         safe_message = message.encode('ascii', 'ignore').decode('ascii')
         print(safe_message)
-
-def transcribe_audio(path):
-    if not path or not os.path.exists(path):
-        safe_print(f"❌ Audio file not found: {path}")
-        return None
-    safe_print("🧠 Transcribing...")
-    try:
-        file_size = os.path.getsize(path)
-        safe_print(f"📁 Audio file size: {file_size} bytes")
-        if file_size < 1000:
-            safe_print("⚠️ Audio file too small, likely empty")
-            return None
-        result = asr(path)
-        transcript = result.get("text", "") if isinstance(result, dict) else str(result)
-        transcript = transcript.strip()
-        if not transcript or len(transcript) > 500 and transcript.count('.') / len(transcript) > 0.8 or transcript.lower() in ['', ' ', 'you', 'thank you', '.']:
-            safe_print("⚠️ Transcription invalid or empty")
-            return None
-        safe_print(f"📜 Transcript: {transcript}")
-        return transcript
-    except Exception as transcribe_error:
-        safe_print(f"❌ Transcription error: {transcribe_error}")
-        return None
-    finally:
-        try:
-            if os.path.exists(path):
-                os.unlink(path)
-        except Exception as cleanup_error:
-            safe_print(f"⚠️ Could not clean up temp file: {cleanup_error}")
 
 def get_confirmation_message(parsed_action):
     action = parsed_action.get("action")
@@ -91,20 +56,6 @@ def get_confirmation_message(parsed_action):
     else:
         return f"Do you want to perform the action: {action}?"
 
-def execute_os_action(parsed_action):
-    global pending_os_action
-    try:
-        result = os_actions.perform_os_action(parsed_action)
-        safe_result = f"🖥️ {result}"
-        output_text.set(safe_result)
-        speech.speak(result)
-    except Exception as os_error:
-        error_msg = f"OS action failed: {str(os_error)}"
-        safe_print(f"❌ {error_msg}")
-        output_text.set(f"❌ {error_msg}")
-        speech.speak("The OS action failed.")
-    pending_os_action = None
-
 def handle_confirmation_response(user_text):
     global pending_os_action
     user_text_lower = user_text.lower().strip()
@@ -116,15 +67,17 @@ def handle_confirmation_response(user_text):
         output_text.set("🖥️ Executing action...")
         app.update()
         execute_os_action(pending_os_action)
+        memory_manager.add_to_memory(user_text, "Action executed.")
         return True
     elif is_negative:
         output_text.set("❌ Action cancelled.")
-        speech.speak("Action cancelled. What else can I help you with?")
+        speak("Action cancelled. What else can I help you with?")
+        memory_manager.add_to_memory(user_text, "Action cancelled.")
         pending_os_action = None
         return True
     else:
         output_text.set("🤔 Please say 'yes' to confirm or 'no' to cancel.")
-        speech.speak("I didn't understand. Please say yes to confirm or no to cancel.")
+        speak("I didn't understand. Please say yes to confirm or no to cancel.")
         return False
 
 def handle_voice():
@@ -132,22 +85,22 @@ def handle_voice():
     try:
         output_text.set("🎤 Recording... Please speak clearly and wait for silence detection.")
         app.update()
-        audio_path = audio.record_until_silence()
+        audio_path = record_until_silence()
         if not audio_path:
             output_text.set("❌ Recording failed. Please check your microphone.")
-            speech.speak("Recording failed. Please check your microphone.")
+            speak("Recording failed. Please check your microphone.")
             return
         user_text = transcribe_audio(audio_path)
         if not user_text:
             output_text.set("❌ Could not understand audio. Please speak more clearly.")
-            speech.speak("I couldn't understand what you said. Please try speaking more clearly.")
+            speak("I couldn't understand what you said. Please try speaking more clearly.")
             return
         safe_user_text = f"🧑 You: {user_text}"
         output_text.set(safe_user_text)
         app.update()
         if len(user_text.strip()) < 3:
             output_text.set("❌ Speech too short or unclear.")
-            speech.speak("Your speech was too short or unclear. Please try again.")
+            speak("Your speech was too short or unclear. Please try again.")
             return
         if pending_os_action:
             if handle_confirmation_response(user_text):
@@ -156,34 +109,51 @@ def handle_voice():
                 return
         output_text.set("🤖 Processing your request...")
         app.update()
-        parsed = llm_parser.generate_response(user_text)
+        parsed = generate_response(user_text, memory_manager)
         if not parsed or not isinstance(parsed, dict):
             safe_print("❌ Invalid response from LLM parser")
             output_text.set("❌ Sorry, I couldn't process that request.")
-            speech.speak("Sorry, I couldn't process that request.")
+            speak("Sorry, I couldn't process that request.")
             return
         response_type = parsed.get("type", "assistant")
         message = parsed.get("message", "No response generated.")
         if response_type == "assistant":
             safe_message = f"🤖 Spark: {message}"
             output_text.set(safe_message)
-            speech.speak(message)
+            speak(message)
+            memory_manager.add_to_memory(user_text, message)
         elif response_type == "os":
             if parsed.get("action") in actions_requiring_confirmation:
                 pending_os_action = parsed
                 confirmation_message = get_confirmation_message(parsed)
                 output_text.set(f"🤔 {confirmation_message}")
-                speech.speak(confirmation_message)
+                speak(confirmation_message)
                 safe_print(f"Awaiting confirmation for: {parsed}")
             else:
                 execute_os_action(parsed)
+                memory_manager.add_to_memory(user_text, f"Executed {parsed['action']}")
+        elif response_type == "sequence":
+            # Speak the overall sequence message
+            overall_message = parsed.get("message", "Performing sequence of actions.")
+            speak(overall_message)
+            # Execute each action in the sequence
+            for action in parsed["actions"]:
+                action_message = action.get("message", "Performing action.")
+                speak(action_message)
+                result = execute_os_action(action)
+                # Check for failure (assuming execute_os_action returns a string)
+                if result.lower().startswith(("error", "failed")):
+                    speak(result)
+                    break  # Stop sequence on failure
+                else:
+                    speak(result)
         elif response_type == "code":
-            speech.speak(message)
+            speak(message)
             target_file = parsed.get("target", "generated_code.py")
             code = parsed.get("code", "")
             if not code:
                 output_text.set("❌ No code was generated")
-                speech.speak("No code was generated.")
+                speak("No code was generated.")
                 return
             try:
                 if not target_file.endswith('.py'):
@@ -193,16 +163,17 @@ def handle_voice():
                 success_msg = f"🖥️ Code written to {target_file}"
                 output_text.set(success_msg)
                 safe_print(success_msg)
+                memory_manager.add_to_memory(user_text, success_msg)
             except Exception as write_error:
                 error_msg = f"❌ Failed to write code: {write_error}"
                 output_text.set(error_msg)
-                speech.speak("Failed to write the code.")
+                speak("Failed to write the code.")
                 safe_print(error_msg)
     except Exception as e:
         error_msg = f"❌ An error occurred: {str(e)}"
         safe_print(error_msg)
         output_text.set("❌ An error occurred while processing your request.")
-        speech.speak("An error occurred while processing your request.")
+        speak("An error occurred while processing your request.")
 
 app = tk.Tk()
 app.title("Voice Assistant - Spark")
@@ -244,7 +215,7 @@ def cancel_pending_action():
     if pending_os_action:
         pending_os_action = None
         output_text.set("❌ Pending action cancelled.")
-        speech.speak("Pending action cancelled. What else can I help you with?")
+        speak("Pending action cancelled. What else can I help you with?")
         status_label.config(text="Ready")
 
 cancel_button = tk.Button(app, text="❌ Cancel", font=("Helvetica", 12),

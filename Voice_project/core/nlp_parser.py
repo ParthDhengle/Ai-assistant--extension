@@ -26,12 +26,20 @@ def generate_response(prompt, memory_manager):
             f"Files: {files}\n"
             "Use these paths when deciding where to create, delete, or move files."
         )
+        print("OS Context:", os_context)
 
         # Get memory context
         recent_memory = memory_manager.get_recent_memory(3)
         summary = memory_manager.get_summary()
         vector_hits = memory_manager.get_relevant_memory(prompt, k=2)
-
+        print("Recent Memory:", recent_memory)
+        print("Summary:", summary)  
+        print("Vector Hits:", vector_hits)
+        # Handle empty vector_hits
+        if vector_hits:
+            vector_hits_str = '\n'.join([f"You: {u}\nSpark: {b}" for u, b in vector_hits])
+        else:
+            vector_hits_str = "No relevant memory found."
         # Format system prompt with memory
         formatted_prompt = SYSTEM_PROMPT.format(
             summary=summary,
@@ -40,7 +48,7 @@ def generate_response(prompt, memory_manager):
             query=prompt,
             os_context=os_context
         )
-
+        print("Formatted prompt:", formatted_prompt)
         response = requests.post(
             "http://localhost:11434/api/chat",
             json={
@@ -54,10 +62,21 @@ def generate_response(prompt, memory_manager):
             timeout=30
         )
         response.raise_for_status()
+        print("Raw response content:", response.text)
+
+# Check if response is valid before parsing
+        if response.text.strip():
+            try:
+                response_data = response.json()
+                content = response_data.get('message', {}).get('content', '')
+                content = clean_text(content)
+            except json.JSONDecodeError as json_err:
+                print(f"⚠️ Invalid JSON response: {json_err}")
+                content = "Received an invalid response from the API."
+        else:
+            print("⚠️ Empty response from API")
+            content = "Received an empty response from the API."
         
-        response_data = response.json()
-        content = response_data.get('message', {}).get('content', '')
-        content = clean_text(content)
         
         print("🔍 Phi3 Output:", content)
 
