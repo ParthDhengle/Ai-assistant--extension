@@ -3,6 +3,13 @@ import shutil
 import subprocess
 import webbrowser
 
+# Dictionary of search platforms with URL templates
+SEARCH_PLATFORMS = {
+    "youtube": "https://www.youtube.com/results?search_query={query}",
+    "google": "https://www.google.com/search?q={query}",
+    "amazon": "https://www.amazon.com/s?k={query}",
+    # Add more platforms here as needed, e.g., "ebay": "https://www.ebay.com/sch/i.html?_nkw={query}"
+}
 def perform_os_action(parsed):
     action = parsed.get("action")
     try:
@@ -118,6 +125,19 @@ def perform_os_action(parsed):
             else:
                 return "Insufficient parameters for play_media"
 
+        elif action == "search_platform":
+            platform = parsed.get("platform")
+            query = parsed.get("query")
+            if not platform or not query:
+                return "Platform and query are required for search_platform"
+            platform = platform.lower()
+            if platform in SEARCH_PLATFORMS:
+                url = SEARCH_PLATFORMS[platform].format(query=query)
+                webbrowser.open(url)
+                return f"Searching {platform} for {query}"
+            else:
+                return f"Unsupported platform: {platform}"
+            
         elif action == "play_local_media":
             file_path = parsed.get("file_path")
             if not file_path:

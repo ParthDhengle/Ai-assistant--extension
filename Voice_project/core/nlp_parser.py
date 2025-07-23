@@ -32,9 +32,6 @@ def generate_response(prompt, memory_manager):
         recent_memory = memory_manager.get_recent_memory(3)
         summary = memory_manager.get_summary()
         vector_hits = memory_manager.get_relevant_memory(prompt, k=2)
-        print("Recent Memory:", recent_memory)
-        print("Summary:", summary)  
-        print("Vector Hits:", vector_hits)
         # Handle empty vector_hits
         if vector_hits:
             vector_hits_str = '\n'.join([f"You: {u}\nSpark: {b}" for u, b in vector_hits])
@@ -48,7 +45,6 @@ def generate_response(prompt, memory_manager):
             query=prompt,
             os_context=os_context
         )
-        print("Formatted prompt:", formatted_prompt)
         response = requests.post(
             "http://localhost:11434/api/chat",
             json={

@@ -95,18 +95,18 @@ class MemoryManager:
     def add_to_memory(self, user, bot):
         try:
             with open(self.memory_file, 'r') as f:
-                json.dump(memory, f)
-                print(f"Memory updated: {memory}")
                 content = f.read().strip()
                 if content:
                     memory = json.loads(content)
                 else:
                     memory = []
-        except json.JSONDecodeError:
+        except (FileNotFoundError, json.JSONDecodeError):
             memory = []
         memory.append((user, bot))
+
         with open(self.memory_file, 'w') as f:
             json.dump(memory, f)
+            print(f"Memory updated: {len(memory)} entries")
         self.vector_search.add_interaction(f"You: {user}\nSpark: {bot}")
         if len(memory) % self.summary_interval == 0:
             self.update_summary()
