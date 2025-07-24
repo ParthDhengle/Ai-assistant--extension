@@ -1,71 +1,172 @@
+# utils/helpers.py
 import json
 import re
 
 def extract_json_from_text(text):
     """
-    Extract JSON from text that might contain markdown, explanations, or other content.
+    Extract JSON from text with multiple fallback strategies
     """
     if not text:
-        raise ValueError("Empty text provided")
+        return None
     
-    # Clean the text
     text = text.strip()
     
-    # Try to find JSON blocks first
+    # Strategy 1: Direct JSON parsing
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    
+    # Strategy 2: Find JSON blocks in text
     json_patterns = [
-        r'```json\s*(\{.*?\})\s*```',  # JSON in code blocks
-        r'```\s*(\{.*?\})\s*```',      # JSON in generic code blocks
-        r'(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})',  # Simple JSON object
+        r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',  # Nested braces
+        r'\{.*?\}',  # Simple braces
     ]
     
     for pattern in json_patterns:
         matches = re.findall(pattern, text, re.DOTALL)
         for match in matches:
             try:
-                return json.loads(match.strip())
+                match = match.strip()
+                parsed = json.loads(match)
+                if isinstance(parsed, dict):
+                    return parsed
             except json.JSONDecodeError:
                 continue
     
-    # If no JSON blocks found, try to extract JSON from the entire text
+    # Strategy 3: Extract key-value pairs manually
     try:
-        # Find the first { and last }
-        start = text.find('{')
-        end = text.rfind('}')
+        # Look for common patterns
+        type_match = re.search(r'"type":\s*"(\w+)"', text)
+        message_match = re.search(r'"message":\s*"([^"]+)"', text)
+        action_match = re.search(r'"action":\s*"([^"]+)"', text)
         
-        if start != -1 and end != -1 and end > start:
-            json_str = text[start:end+1]
-            return json.loads(json_str)
-    except json.JSONDecodeError:
+        result = {}
+        
+        if type_match:
+            result["type"] = type_match.group(1)
+        if message_match:
+            result["message"] = message_match.group(1)
+        if action_match:
+            result["action"] = action_match.group(1)
+            
+        # Extract additional fields based on action type
+        if result.get("action") == "open_website":
+            url_match = re.search(r'"url":\s*"([^"]+)"', text)
+            if url_match:
+                result["url"] = url_match.group(1)
+        elif result.get("action") == "play_youtube_video":
+            query_match = re.search(r'"query":\s*"([^"]+)"', text)
+            if query_match:
+                result["query"] = query_match.group(1)
+        elif result.get("action") in ["create_file", "delete_file"]:
+            target_match = re.search(r'"target":\s*"([^"]+)"', text)
+            if target_match:
+                result["target"] = target_match.group(1)
+        
+        if result and "type" in result:
+            return result
+            
+    except Exception:
         pass
     
-    # Last resort: try to parse the entire text as JSON
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    
-    # If all else fails, return a default structure
-    raise ValueError(f"Could not extract valid JSON from: {text[:200]}...")
+    # Strategy 4: Intelligent parsing based on content
+    return parse_intent_from_text(text)
 
-def clean_filename(filename):
-    """Clean filename to remove invalid characters"""
-    # Remove invalid characters for filenames
-    invalid_chars = '<>:"/\\|?*'
-    for char in invalid_chars:
-        filename = filename.replace(char, '_')
-    return filename.strip()
+def parse_intent_from_text(text):
+    """
+    Parse user intent when JSON extraction fails
+    """
+    text_lower = text.lower()
+    
+    # Common website patterns
+    if any(site in text_lower for site in ['youtube', 'google', 'facebook', 'twitter']):
+        if 'youtube' in text_lower:
+            if any(word in text_lower for word in ['play', 'watch', 'song', 'music', 'video']):
+                # Extract potential search query
+                query_patterns = [
+                    r'play\s+([^.!?]+)',
+                    r'watch\s+([^.!?]+)',
+                    r'search\s+(?:for\s+)?([^.!?]+)',
+                ]
+                
+                query = "music"  # default
+                for pattern in query_patterns:
+                    match = re.search(pattern, text_lower)
+                    if match:
+                        query = match.group(1).strip()
+                        # Clean up the query
+                        query = re.sub(r'\s+on\s+youtube.*$', '', query)
+                        break
+                
+                return {
+                    "type": "os",
+                    "action": "play_youtube_video",
+                    "query": query,
+                    "message": f"Playing {query} on YouTube"
+                }
+            else:
+                return {
+                    "type": "os",
+                    "action": "open_website",
+                    "url": "youtube.com",
+                    "message": "Opening YouTube"
+                }
+    
+    # File operations
+    if any(word in text_lower for word in ['create', 'make', 'new']) and 'file' in text_lower:
+        filename_match = re.search(r'(?:create|make|new)\s+(?:a\s+)?(?:file\s+)?(?:named\s+|called\s+)?([^\s.]+(?:\.[a-z]+)?)', text_lower)
+        filename = filename_match.group(1) if filename_match else "new_file.txt"
+        return {
+            "type": "os",
+            "action": "create_file",
+            "target": filename,
+            "message": f"Creating file {filename}"
+        }
+    
+    # Open applications
+    app_patterns = [
+        (r'open\s+([a-zA-Z]+)', 'open_application'),
+        (r'start\s+([a-zA-Z]+)', 'open_application'),
+        (r'launch\s+([a-zA-Z]+)', 'open_application'),
+    ]
+    
+    for pattern, action in app_patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            app_name = match.group(1)
+            return {
+                "type": "os",
+                "action": action,
+                "app_name": app_name,
+                "message": f"Opening {app_name}"
+            }
+    
+    # Default to assistant response
+    return {
+        "type": "assistant",
+        "message": text if text else "I'm not sure how to help with that."
+    }
 
-def validate_path(path):
-    """Basic path validation"""
-    if not path:
-        return False
+def validate_json_response(data):
+    """
+    Validate and fix common issues in JSON responses
+    """
+    if not isinstance(data, dict):
+        return {
+            "type": "assistant",
+            "message": "Invalid response format"
+        }
     
-    # Check for dangerous patterns
-    dangerous_patterns = ['../', '..\\', '/etc/', '/sys/', 'C:\\Windows\\']
-    path_lower = path.lower()
+    # Ensure required fields
+    if 'type' not in data:
+        data['type'] = 'assistant'
     
-    for pattern in dangerous_patterns:
-        if pattern.lower() in path_lower:
-            return False
+    if 'message' not in data:
+        if data['type'] == 'os':
+            action = data.get('action', 'unknown')
+            data['message'] = f"Performing {action}"
+        else:
+            data['message'] = "Processing request"
     
-    return True
+    return data

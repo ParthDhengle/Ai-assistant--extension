@@ -2,18 +2,30 @@ import os
 import shutil
 import subprocess
 import webbrowser
+from core.youtube_api import search_youtube
 
-# Dictionary of search platforms with URL templates
 SEARCH_PLATFORMS = {
     "youtube": "https://www.youtube.com/results?search_query={query}",
     "google": "https://www.google.com/search?q={query}",
     "amazon": "https://www.amazon.com/s?k={query}",
-    # Add more platforms here as needed, e.g., "ebay": "https://www.ebay.com/sch/i.html?_nkw={query}"
 }
+
 def perform_os_action(parsed):
     action = parsed.get("action")
     try:
-        if action == "create_file":
+        if action == "play_youtube_video":
+            query = parsed.get("query")
+            if not query:
+                return "Query not provided for YouTube video"
+            video_id = search_youtube(query)
+            if video_id:
+                webbrowser.open(f"https://www.youtube.com/watch?v={video_id}")
+                webbrowser.open(embed_url)
+                return f"Playing YouTube video for '{query}'"
+            else:
+                return f"No video found for '{query}'"
+        
+        elif action == "create_file":
             target = parsed.get("target")
             if not target:
                 return "Target not provided"

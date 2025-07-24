@@ -60,3 +60,4 @@ soundfile>=0.12.1
 
 # Optional: For better performance monitoring
 psutil>=5.8.0
+python-dotenv

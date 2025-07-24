@@ -26,14 +26,12 @@ class MemoryManager:
 
     def get_recent_memory(self, n):
         if not os.path.exists(self.memory_file):
-            print(f"Memory file does not exist: {self.memory_file}")
             return []
         try:
             with open(self.memory_file, 'r') as f:
                 content = f.read()
-                print(f"Memory file content: {content}")
+                
                 if not content:  # Handle empty file
-                    print("Memory file is empty")
                     return []
                 memory = json.loads(content)
             return memory[-n:] if len(memory) >= n else memory

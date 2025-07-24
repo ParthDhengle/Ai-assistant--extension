@@ -22,16 +22,16 @@ Supported OS actions:
 - open_website → e.g., 'open youtube.com' → {{ "action": "open_website", "url": "youtube.com" }}
 - open_file → e.g., 'open mydocument.docx' → {{ "action": "open_file", "file_path": "mydocument.docx" }}
 - system_command → e.g., 'shutdown the computer' → {{ "action": "system_command", "command": "shutdown" }}
-- play_media → e.g., 'play chihiro song on youtube' → {{ "action": "play_media", "platform": "youtube", "query": "chihiro song" }}
+- play_youtube_video → e.g., 'play chihiro song on youtube' → {{ "action": "play_youtube_video", "query": "chihiro song" }}
 - play_local_media → e.g., 'play chihiro.mp3' → {{ "action": "play_local_media", "file_path": "chihiro.mp3" }}
 - search_platform → e.g., 'search for laptops on amazon' → {{ "action": "search_platform", "platform": "amazon", "query": "laptops" }}
 
 Important:
 - If the user asks to "open" a website without specifying a search, use 'open_website'.
-- If the user asks to "search for" something on a platform or says "open [platform] and search for [query]", use 'search_platform' with the platform and query as a single action.
+- If the user asks to "search for" something on a platform, use 'search_platform'.
+- If the user asks to "play" something on YouTube, use 'play_youtube_video' with the query.
 - For example:
-  - "Open YouTube" → {{ "type": "os", "action": "open_website", "url": "youtube.com", "message": "Opening YouTube" }}
+  - "Play jazz music on YouTube" → {{ "type": "os", "action": "play_youtube_video", "query": "jazz music", "message": "Playing jazz music on YouTube" }}
   - "Open YouTube and search for DSA playlist" → {{ "type": "os", "action": "search_platform", "platform": "youtube", "query": "DSA playlist", "message": "Searching for DSA playlist on YouTube" }}
-  - "Search for DSA playlist on YouTube" → {{ "type": "os", "action": "search_platform", "platform": "youtube", "query": "DSA playlist", "message": "Searching for DSA playlist on YouTube" }}
 - Only use 'sequence' for tasks that require multiple distinct actions, like creating a folder and then copying a file into it.
 Respond with valid JSON only, no explanations or extra text."""
