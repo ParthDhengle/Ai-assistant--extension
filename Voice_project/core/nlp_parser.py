@@ -3,6 +3,7 @@ import re
 import json
 from core.task_executor import get_contextual_os_info
 from utils.prompt_templates import SYSTEM_PROMPT
+from utils.helpers import extract_json_from_text
 
 def clean_text(text):
     """Clean text to remove problematic unicode characters"""
@@ -16,62 +17,6 @@ def extract_code(text):
     code_blocks = re.findall(r'```(?:python)?\n(.*?)\n```', text, re.DOTALL)
     return code_blocks[0].strip() if code_blocks else text.strip()
 
-def extract_json_from_text(text):
-    """
-    Improved JSON extraction that handles various formats
-    """
-    if not text:
-        return None
-    
-    # Clean the text first
-    text = clean_text(text).strip()
-    
-    # Try to find JSON within the text
-    json_patterns = [
-        r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',  # Simple nested JSON
-        r'\{.*?\}',  # Basic JSON pattern
-    ]
-    
-    for pattern in json_patterns:
-        matches = re.findall(pattern, text, re.DOTALL)
-        for match in matches:
-            try:
-                # Clean up the match
-                match = match.strip()
-                # Try to parse as JSON
-                parsed = json.loads(match)
-                if isinstance(parsed, dict) and ('type' in parsed or 'message' in parsed):
-                    return parsed
-            except json.JSONDecodeError:
-                continue
-    
-    # If no valid JSON found, try to extract structured information
-    # Look for action patterns in the text
-    if 'open' in text.lower() and 'youtube' in text.lower():
-        if 'search' in text.lower() or 'playlist' in text.lower():
-            # Extract search query
-            query_match = re.search(r'(?:search for|find|look for)\s+([^.]+)', text.lower())
-            query = query_match.group(1).strip() if query_match else "music"
-            return {
-                "type": "os",
-                "action": "search_platform",
-                "platform": "youtube",
-                "query": query,
-                "message": f"Searching for {query} on YouTube"
-            }
-        else:
-            return {
-                "type": "os",
-                "action": "open_website",
-                "url": "youtube.com",
-                "message": "Opening YouTube"
-            }
-    
-    # If still no valid structure, return as assistant response
-    return {
-        "type": "assistant",
-        "message": text if text else "I'm not sure how to help with that."
-    }
 
 def validate_parsed_response(parsed):
     """Validate and fix common issues in parsed responses"""
@@ -128,23 +73,27 @@ def generate_response(prompt, memory_manager):
             "Use these paths when deciding where to create, delete, or move files."
         )
 
-        # Get memory context
-        recent_memory = memory_manager.get_recent_memory(3)
-        summary = memory_manager.get_summary()
-        vector_hits = memory_manager.get_relevant_memory(prompt, k=2)
+        context = memory_manager.get_context_for_llm(prompt)
         
-        # Handle empty memory gracefully
-        recent_str = '\n'.join([f"You: {u}\nSpark: {b}" for u, b in recent_memory]) if recent_memory else "No recent conversation"
-        vector_str = '\n'.join([f"You: {u}\nSpark: {b}" for u, b in vector_hits]) if vector_hits else "No relevant memory found"
+        # Extract and format context components
+        user_profile_str = json.dumps(context['user_profile']) if context['user_profile'] else "No user profile available"
+        summary_str = context['summary'] if context['summary'] else "No summary available"
+        recent_str = '\n'.join([f"{msg['role']}: {msg['content']}" for msg in context['recent_messages']]) if context['recent_messages'] else "No recent messages"
+        relevant_past_str = '\n'.join(context['relevant_past']) if context['relevant_past'] else "No relevant past messages"
         
-        # Format system prompt with memory
-        formatted_prompt = SYSTEM_PROMPT.format(
-            summary=summary or "No conversation summary available",
-            recent=recent_str,
-            vector_hits=vector_str,
-            query=prompt,
-            os_context=os_context
-        )
+        # Format the system prompt
+        formatted_prompt = f"""
+        SYSTEM:
+        You are Spark, a voice assistant.
+        User profile: {user_profile_str}
+        Summary of previous conversation: {summary_str}
+        Recent conversation:
+        {recent_str}
+        Relevant past messages:
+        {relevant_past_str}
+        Current user query: {prompt}
+        {os_context}
+        """
         
         print("🔍 Sending request to Ollama...")
         

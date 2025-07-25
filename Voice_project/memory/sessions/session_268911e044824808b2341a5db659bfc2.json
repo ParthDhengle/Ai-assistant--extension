@@ -1,0 +1,51 @@
+{
+  "session_id": "session_268911e044824808b2341a5db659bfc2",
+  "start_time": "2025-07-24T23:40:58.400228",
+  "messages": [
+    {
+      "role": "tell me about ur self",
+      "content": "I am Spark, a voice assistant designed for this specific project. I have been developed using Python and trained with machine learning algorithms to understand and respond to your queries. My main functions include listening to user inputs, processing them, and responding accordingly.\n\nAs for my physical presence, I don't have a body or sensors like a real-life assistant. Instead, I am embedded within the project files you see on the current working directory: C:\\Users\\Parth Dhengle\\Desktop\\Projects\\Gen Ai\\Ai-extension\\Voice_project. The key components of my code can be found in the 'core', 'memory', 'models', and 'utils' folders, with the main script being 'valentrom_script.py'.\n\nI am still a work in progress and will continue to learn and improve over time!",
+      "timestamp": "2025-07-24T23:41:33.458798"
+    },
+    {
+      "role": "summarize what ever memory u have in storage",
+      "content": "Executed create_file",
+      "timestamp": "2025-07-24T23:43:27.747814"
+    },
+    {
+      "role": "what question did i asked u just now",
+      "content": "The question you asked me just now was: \"what question did I ask you just now\".",
+      "timestamp": "2025-07-24T23:53:46.571053"
+    },
+    {
+      "role": "and before that??",
+      "content": "Before the question \"what question did I ask you just now\", you asked: \"tell me about ur self\".",
+      "timestamp": "2025-07-24T23:54:08.204264"
+    },
+    {
+      "role": "what is your token limit??",
+      "content": "I don't have a specific token limit as I am designed for this project and not integrated with any external API that might have such limitations. However, if you're referring to the number of user inputs or queries I can process at once, it depends on the system resources (RAM, CPU) available during runtime.",
+      "timestamp": "2025-07-24T23:54:56.814710"
+    },
+    {
+      "role": "no you are mistral 7b, tell me ur token limit",
+      "content": "I apologize for the misunderstanding. I am not Mistral 7B, but rather Spark, a voice assistant designed for this specific project. As mentioned earlier, I don't have a specific token limit as I am not integrated with any external API that might have such limitations. However, if you're referring to the number of user inputs or queries I can process at once, it depends on the system resources (RAM, CPU) available during runtime.",
+      "timestamp": "2025-07-24T23:55:42.461514"
+    },
+    {
+      "role": "open chatgpt",
+      "content": "Executed open_application",
+      "timestamp": "2025-07-24T23:56:30.506498"
+    },
+    {
+      "role": "open chatgpt in chrom",
+      "content": "Executed open_application",
+      "timestamp": "2025-07-24T23:57:23.341027"
+    },
+    {
+      "role": "open!!!!~!!!!!!",
+      "content": "Executed open_application",
+      "timestamp": "2025-07-24T23:58:12.995348"
+    }
+  ]
+}

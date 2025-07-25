@@ -4,7 +4,7 @@ from threading import Thread
 from config import MODEL_PATH
 from core.asr_transcriber import transcribe_audio
 from core.nlp_parser import generate_response
-from core.memory_manager import MemoryManager
+from memory.memory_manager import MemoryManager
 from core.task_executor import execute_os_action
 from utils.audio_utils import record_until_silence
 from utils.speech import speak
@@ -93,14 +93,14 @@ def handle_confirmation_response(user_text):
         add_to_conversation("Spark", "Executing action...", "action")
         result = execute_os_action(pending_os_action)
         add_to_conversation("Spark", result, "action")
-        memory_manager.add_to_memory(user_text, "Action executed.")
+        memory_manager.add_message(user_text, "Action executed.")
         pending_os_action = None
         return True
     elif is_negative:
         add_to_conversation("Spark", "Action cancelled.", "normal")
         if not is_text_input:
             speak("Action cancelled. What else can I help you with?")
-        memory_manager.add_to_memory(user_text, "Action cancelled.")
+        memory_manager.add_message(user_text, "Action cancelled.")
         pending_os_action = None
         return True
     else:
@@ -149,7 +149,7 @@ def process_user_input(user_text, input_mode="voice"):
             add_to_conversation("Spark", message)
             if not is_text_input:
                 speak(message)
-            memory_manager.add_to_memory(user_text, message)
+            memory_manager.add_message(user_text, message)
         
         elif response_type == "os":
             if parsed.get("action") in actions_requiring_confirmation:
@@ -162,7 +162,7 @@ def process_user_input(user_text, input_mode="voice"):
             else:
                 result = execute_os_action(parsed)
                 add_to_conversation("Spark", result, "action")
-                memory_manager.add_to_memory(user_text, f"Executed {parsed['action']}")
+                memory_manager.add_message(user_text, f"Executed {parsed['action']}")
         
         elif response_type == "sequence":
             # Speak the overall sequence message
@@ -207,7 +207,7 @@ def process_user_input(user_text, input_mode="voice"):
                 success_msg = f"Code written to {target_file}"
                 add_to_conversation("Spark", success_msg, "action")
                 safe_print(success_msg)
-                memory_manager.add_to_memory(user_text, success_msg)
+                memory_manager.add_message(user_text, success_msg)
             except Exception as write_error:
                 error_msg = f"Failed to write code: {write_error}"
                 add_to_conversation("Spark", error_msg, "error")
